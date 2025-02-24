@@ -1,32 +1,30 @@
 name: m08_uf1_p3_arnau_marcos
-description: "A new Flutter project."
+description: "Un nou projecte Flutter."
 
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+1 # Versió del projecte: 1.0.0, build número 1
 
 environment:
-  sdk: ^3.7.0
+  sdk: ^3.7.0 # Versió mínima del SDK de Dart requerida per al projecte
 
 dependencies:
   flutter:
-    sdk: flutter
+    sdk: flutter # Dependència bàsica de Flutter
 
-  # CAMERA
-  camera: ^0.11.1
+  # CÀMERA
+  camera: ^0.11.1 # Paquet per accedir a la funcionalitat de la càmera
 
-  # MUSIC
-  just_audio: ^0.9.32
-
-
+  # MÚSICA
+  just_audio: ^0.9.32 # Paquet per reproduir fitxers d'àudio
 
 dev_dependencies:
   flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0
+    sdk: flutter # Dependència per executar tests en Flutter
+  flutter_lints: ^5.0.0 # Lints estàndard per millorar la qualitat del codi
 
 flutter:
-  uses-material-design: true
+  uses-material-design: true # Habilita l'ús del disseny Material Design a l'aplicació
   assets:
-    - assets/audio/song.mp3
-    - assets/audio/song2.mp3
+    - assets/audio/song.mp3 # Inclou l'arxiu d'àudio "song.mp3" com a recurs
+    - assets/audio/song2.mp3 # Inclou l'arxiu d'àudio "song2.mp3" com a recurs
