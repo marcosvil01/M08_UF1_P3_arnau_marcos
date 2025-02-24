@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import '../gallery.dart'; // Importa la llista global
 
+// Pantalla de la càmera
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
 
@@ -12,31 +13,32 @@ class CameraScreen extends StatefulWidget {
 }
 
 class _CameraScreenState extends State<CameraScreen> {
-  CameraController? _controller;
-  XFile? _imageFile;
-  List<CameraDescription> _cameras = [];
-  int _selectedCameraIndex = 0;
-  bool _isFlashOn = false;
+  CameraController? _controller; // Controlador de la càmera
+  XFile? _imageFile; // Fitxer de la imatge capturada
+  List<CameraDescription> _cameras = []; // Llista de càmeres disponibles
+  int _selectedCameraIndex = 0; // Índex de la càmera seleccionada
+  bool _isFlashOn = false; // Estat del flash
 
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
+    _initializeCamera(); // Inicialitzem la càmera
   }
 
+  // Inicialitza la càmera seleccionada
   Future<void> _initializeCamera() async {
     WidgetsFlutterBinding.ensureInitialized();
-    _cameras = await availableCameras();
+    _cameras = await availableCameras(); // Obtenim les càmeres disponibles
     if (_cameras.isNotEmpty) {
-      _selectedCameraIndex = 0;
+      _selectedCameraIndex = 0; // Per defecte, seleccionem la primera càmera
       _controller = CameraController(
-        _cameras[_selectedCameraIndex],
-        ResolutionPreset.medium,
+        _cameras[_selectedCameraIndex], // Assignem la càmera seleccionada
+        ResolutionPreset.medium, // Resulució mitjana
       );
       try {
-        await _controller!.initialize();
+        await _controller!.initialize(); // Inicialitzem la càmera
       } catch (e) {
-        print("Error inicialitzant la càmera: $e");
+        print("Error inicialitzant la càmera: $e"); // Error si no es pot inicialitzar
       }
       if (mounted) setState(() {});
     } else {
@@ -44,17 +46,18 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  // Canvia entre càmeres (davant o darrere)
   Future<void> _switchCamera() async {
     if (_cameras.length > 1) {
-      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length;
-      await _controller!.dispose();
+      _selectedCameraIndex = (_selectedCameraIndex + 1) % _cameras.length; // Alterna l'índex de la càmera
+      await _controller!.dispose(); // Destrueix el controlador actual
       _controller = CameraController(
-        _cameras[_selectedCameraIndex],
-        ResolutionPreset.medium,
+        _cameras[_selectedCameraIndex], // Nova càmera seleccionada
+        ResolutionPreset.medium, // Resulució mitjana
       );
       try {
-        await _controller!.initialize();
-        _isFlashOn = false;
+        await _controller!.initialize(); // Inicialitza la nova càmera
+        _isFlashOn = false; // Desactiva el flash al canviar de càmera
       } catch (e) {
         print("Error canviant la càmera: $e");
       }
@@ -62,12 +65,13 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  // Activa o desactiva el flash
   Future<void> _toggleFlash() async {
     if (_controller != null) {
-      _isFlashOn = !_isFlashOn;
+      _isFlashOn = !_isFlashOn; // Alterna l'estat del flash
       try {
         await _controller!.setFlashMode(
-          _isFlashOn ? FlashMode.torch : FlashMode.off,
+          _isFlashOn ? FlashMode.torch : FlashMode.off, // Activa o desactiva el flash
         );
       } catch (e) {
         print("Error activant/desactivant el flash: $e");
@@ -76,13 +80,14 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  // Captura una imatge i la desa a la llista global
   Future<void> _takePicture() async {
     if (_controller != null && _controller!.value.isInitialized) {
       try {
-        final file = await _controller!.takePicture();
+        final file = await _controller!.takePicture(); // Captura la imatge
         setState(() {
-          _imageFile = file;
-          // Afegeix la ruta de la imatge a la llista global.
+          _imageFile = file; // Desa el fitxer d'imatge capturat
+          // Afegeix la ruta de la imatge a la llista global
           capturedImages.add(file.path);
         });
       } catch (e) {
@@ -91,6 +96,7 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  // Obre la galeria per veure la imatge capturada
   void _openGallery() {
     if (_imageFile != null) {
       Navigator.push(
@@ -104,7 +110,7 @@ class _CameraScreenState extends State<CameraScreen> {
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller?.dispose(); // Destrueix el controlador de la càmera quan es surt de la pantalla
     super.dispose();
   }
 
@@ -113,7 +119,7 @@ class _CameraScreenState extends State<CameraScreen> {
     if (_controller == null || !_controller!.value.isInitialized) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()), // Mostra el carregament mentre s'inicia la càmera
       );
     }
 
@@ -121,10 +127,9 @@ class _CameraScreenState extends State<CameraScreen> {
     var scale = _controller!.value.aspectRatio * size.aspectRatio;
     if (scale < 1) scale = 1 / scale;
 
-    // Detectem si la càmera activa és frontal.
+    // Detectem si la càmera activa és frontal
     final isFrontCamera =
-        _cameras[_selectedCameraIndex].lensDirection ==
-        CameraLensDirection.front;
+        _cameras[_selectedCameraIndex].lensDirection == CameraLensDirection.front;
     // Si és frontal, utilitzem -pi/2 i invertim verticalment; si no, pi/2.
     final rotationAngle = isFrontCamera ? -math.pi / 2 : math.pi / 2;
 
@@ -136,15 +141,15 @@ class _CameraScreenState extends State<CameraScreen> {
           Transform(
             alignment: Alignment.center,
             transform:
-                Matrix4.identity()
-                  ..rotateZ(rotationAngle)
-                  ..scale(1.0, isFrontCamera ? -1.0 : 1.0),
+            Matrix4.identity()
+              ..rotateZ(rotationAngle)
+              ..scale(1.0, isFrontCamera ? -1.0 : 1.0),
             child: Transform.scale(
               scale: scale,
               child: Center(
                 child: AspectRatio(
                   aspectRatio: _controller!.value.aspectRatio,
-                  child: CameraPreview(_controller!),
+                  child: CameraPreview(_controller!), // Mostra la vista de la càmera
                 ),
               ),
             ),
@@ -155,11 +160,11 @@ class _CameraScreenState extends State<CameraScreen> {
             right: 20,
             child: IconButton(
               icon: Icon(
-                _isFlashOn ? Icons.flash_on : Icons.flash_off,
+                _isFlashOn ? Icons.flash_on : Icons.flash_off, // Icona del flash
                 color: Colors.white,
                 size: 30,
               ),
-              onPressed: _toggleFlash,
+              onPressed: _toggleFlash, // Funció per activar/desactivar el flash
             ),
           ),
           // Miniatura de l'última imatge capturada.
@@ -167,27 +172,26 @@ class _CameraScreenState extends State<CameraScreen> {
             bottom: 20,
             left: 20,
             child: GestureDetector(
-              onTap: _openGallery,
-              child:
-                  _imageFile != null
-                      ? ClipRRect(
-                        borderRadius: BorderRadius.circular(8.0),
-                        child: Image.file(
-                          File(_imageFile!.path),
-                          width: 60,
-                          height: 60,
-                          fit: BoxFit.contain,
-                        ),
-                      )
-                      : Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(8.0),
-                        ),
-                        child: const Icon(Icons.photo, color: Colors.white),
-                      ),
+              onTap: _openGallery, // Obre la galeria en fer clic
+              child: _imageFile != null
+                  ? ClipRRect(
+                borderRadius: BorderRadius.circular(8.0),
+                child: Image.file(
+                  File(_imageFile!.path),
+                  width: 60,
+                  height: 60,
+                  fit: BoxFit.contain,
+                ),
+              )
+                  : Container(
+                width: 60,
+                height: 60,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                child: const Icon(Icons.photo, color: Colors.white),
+              ),
             ),
           ),
           // Botó per capturar la imatge.
@@ -197,7 +201,7 @@ class _CameraScreenState extends State<CameraScreen> {
             right: 0,
             child: Center(
               child: GestureDetector(
-                onTap: _takePicture,
+                onTap: _takePicture, // Funció per capturar la imatge
                 child: Container(
                   width: 70,
                   height: 70,
@@ -216,11 +220,11 @@ class _CameraScreenState extends State<CameraScreen> {
             right: 20,
             child: IconButton(
               icon: const Icon(
-                Icons.switch_camera,
+                Icons.switch_camera, // Icona per canviar entre càmeres
                 color: Colors.white,
                 size: 30,
               ),
-              onPressed: _switchCamera,
+              onPressed: _switchCamera, // Funció per canviar de càmera
             ),
           ),
         ],
@@ -237,8 +241,8 @@ class GalleryScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Galeria')),
-      body: Center(child: Image.file(File(imagePath))),
+      appBar: AppBar(title: const Text('Galeria')), // Títol de la galeria
+      body: Center(child: Image.file(File(imagePath))), // Mostra la imatge seleccionada
     );
   }
 }
