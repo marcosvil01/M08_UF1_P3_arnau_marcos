@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:on_audio_query/on_audio_query.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:rxdart/rxdart.dart';
+
+/// Classe per representar una cançó amb títol i camí de l'asset
+class Song {
+  final String title;
+  final String assetPath;
+
+  Song({required this.title, required this.assetPath});
+}
+
+/// Classe per emmagatzemar la informació de la posició i la durada
+class PositionData {
+  final Duration position;
+  final Duration duration;
+  PositionData(this.position, this.duration);
+}
 
 class MusicScreen extends StatefulWidget {
   const MusicScreen({super.key});
@@ -11,247 +25,175 @@ class MusicScreen extends StatefulWidget {
 }
 
 class _MusicScreenState extends State<MusicScreen> {
-  // Query local songs
-  final OnAudioQuery _audioQuery = OnAudioQuery();
+  late AudioPlayer _audioPlayer;
+  int _currentIndex = 0;
 
-  // Audio player instance
-  final AudioPlayer _audioPlayer = AudioPlayer();
-
-  // List of songs
-  List<SongModel> _songs = [];
-
-  // Current index of the song being played
-  int _currentIndex = -1;
-
-  // Streams for real-time UI updates
-  late Stream<Duration> _positionStream;
-  late Stream<PlayerState> _playerStateStream;
+  // Llista de reproducció amb títols i camins als assets
+  final List<Song> _playlist = [
+    Song(
+      title: 'Hold My Hand - Michael Jackson',
+      assetPath: 'assets/audio/song.mp3',
+    ),
+    Song(
+      title: 'Billie Jean - Michael Jackson',
+      assetPath: 'assets/audio/song2.mp3',
+    ),
+  ];
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize the position & state streams
-    _positionStream = _audioPlayer.positionStream;
-    _playerStateStream = _audioPlayer.playerStateStream;
-
-    _requestPermissionAndQuerySongs();
+    _audioPlayer = AudioPlayer();
+    _loadCurrentSong();
   }
 
-  // Request permission and load songs if granted
-  Future<void> _requestPermissionAndQuerySongs() async {
-    // Request storage permission
-    PermissionStatus status = await Permission.storage.request();
-
-    if (status.isGranted) {
-      // Query all songs on the device
-      List<SongModel> songs = await _audioQuery.querySongs(
-        sortType: SongSortType.DISPLAY_NAME,
-        orderType: OrderType.ASC_OR_SMALLER,
-        uriType: UriType.EXTERNAL,
-      );
-
-      setState(() {
-        _songs = songs;
-      });
-    } else {
-      // Show a message or handle the case when permission is not granted
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Storage Permission not granted!')),
-      );
+  /// Carrega la cançó actual dels assets
+  Future<void> _loadCurrentSong() async {
+    try {
+      await _audioPlayer.setAsset(_playlist[_currentIndex].assetPath);
+    } catch (e) {
+      print("Error carregant la cançó: $e");
     }
   }
 
-  // Play or pause the current song
-  Future<void> _playOrPauseSong(SongModel song, int index) async {
-    if (_currentIndex == index) {
-      // If tap again on the current song, just toggle pause/play
-      if (_audioPlayer.playing) {
-        await _audioPlayer.pause();
-      } else {
-        await _audioPlayer.play();
+  /// Alterna entre reproduir i pausar la cançó
+  void _togglePlayPause() {
+    if (_audioPlayer.playing) {
+      _audioPlayer.pause();
+    } else {
+      _audioPlayer.play();
+    }
+    setState(() {});
+  }
+
+  /// Reprodueix la cançó següent
+  Future<void> _playNextSong() async {
+    if (_playlist.isNotEmpty) {
+      _currentIndex = (_currentIndex + 1) % _playlist.length;
+      await _loadCurrentSong();
+      _audioPlayer.play();
+      setState(() {});
+    }
+  }
+
+  /// Reprodueix la cançó anterior
+  Future<void> _playPreviousSong() async {
+    if (_playlist.isNotEmpty) {
+      _currentIndex--;
+      if (_currentIndex < 0) {
+        _currentIndex = _playlist.length - 1;
       }
-    } else {
-      // If tapping a new song, set the audio source, then play
-      _currentIndex = index;
-      await _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
-      await _audioPlayer.play();
+      await _loadCurrentSong();
+      _audioPlayer.play();
+      setState(() {});
     }
-    setState(() {});
   }
 
-  // Move to previous track
-  Future<void> _previousTrack() async {
-    if (_songs.isEmpty || _currentIndex <= 0) return;
-    _currentIndex--;
-    _playSongByIndex(_currentIndex);
-  }
+  /// Combina el positionStream i durationStream per obtenir la posició i la durada
+  Stream<PositionData> get _positionDataStream =>
+      Rx.combineLatest2<Duration, Duration?, PositionData>(
+        _audioPlayer.positionStream,
+        _audioPlayer.durationStream,
+        (position, duration) =>
+            PositionData(position, duration ?? Duration.zero),
+      );
 
-  // Move to next track
-  Future<void> _nextTrack() async {
-    if (_songs.isEmpty || _currentIndex >= _songs.length - 1) return;
-    _currentIndex++;
-    _playSongByIndex(_currentIndex);
-  }
-
-  Future<void> _playSongByIndex(int index) async {
-    if (index < 0 || index >= _songs.length) return;
-    final song = _songs[index];
-    await _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
-    await _audioPlayer.play();
-    setState(() {});
-  }
-
-  // Convert Duration to mm:ss format
-  String _formatDuration(Duration? duration) {
-    if (duration == null) return "00:00";
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
+  /// Dona format a una durada en format mm:ss
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
-    return "$minutes:$seconds";
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Build UI: a List of songs + player controls at the bottom
-    return Scaffold(
-      appBar: AppBar(title: const Text("Music Screen")),
-      body: Column(
-        children: [
-          // Expanded for the list of songs
-          Expanded(
-            child:
-                _songs.isEmpty
-                    ? const Center(child: Text('No songs found on device'))
-                    : ListView.builder(
-                      itemCount: _songs.length,
-                      itemBuilder: (context, index) {
-                        final song = _songs[index];
-                        return ListTile(
-                          leading: const Icon(Icons.music_note),
-                          title: Text(song.title),
-                          subtitle: Text(song.artist ?? "Unknown Artist"),
-                          onTap: () => _playOrPauseSong(song, index),
-                        );
-                      },
-                    ),
-          ),
-
-          // Player controls (only show if we have a song selected)
-          if (_currentIndex != -1) _buildPlayerControls(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayerControls() {
-    final currentSong = _songs[_currentIndex];
-
-    return Container(
-      color: Colors.grey.shade900,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: Column(
-        children: [
-          // Song Title
-          Text(
-            currentSong.title,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          // Artist
-          Text(
-            currentSong.artist ?? "Unknown Artist",
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
-          ),
-
-          // Slider + duration
-          StreamBuilder<Duration>(
-            stream: _positionStream,
-            builder: (context, snapshot) {
-              final currentPosition = snapshot.data ?? Duration.zero;
-              final totalDuration = _audioPlayer.duration ?? Duration.zero;
-
-              return Row(
-                children: [
-                  Text(
-                    _formatDuration(currentPosition),
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  Expanded(
-                    child: Slider(
-                      activeColor: Colors.blueAccent,
-                      inactiveColor: Colors.white24,
-                      value: currentPosition.inSeconds.toDouble(),
-                      max: totalDuration.inSeconds.toDouble(),
-                      onChanged: (value) {
-                        // Seek to specific position in track
-                        _audioPlayer.seek(Duration(seconds: value.toInt()));
-                      },
-                    ),
-                  ),
-                  Text(
-                    _formatDuration(totalDuration),
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
-              );
-            },
-          ),
-
-          // Controls Row
-          StreamBuilder<PlayerState>(
-            stream: _playerStateStream,
-            builder: (context, snapshot) {
-              final playerState = snapshot.data;
-              final playing = playerState?.playing ?? false;
-
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    iconSize: 36,
-                    color: Colors.white,
-                    icon: const Icon(Icons.skip_previous),
-                    onPressed: _previousTrack,
-                  ),
-                  IconButton(
-                    iconSize: 48,
-                    color: Colors.white,
-                    icon: Icon(
-                      playing ? Icons.pause_circle : Icons.play_circle,
-                    ),
-                    onPressed: () async {
-                      if (playing) {
-                        await _audioPlayer.pause();
-                      } else {
-                        await _audioPlayer.play();
-                      }
-                      setState(() {});
-                    },
-                  ),
-                  IconButton(
-                    iconSize: 36,
-                    color: Colors.white,
-                    icon: const Icon(Icons.skip_next),
-                    onPressed: _nextTrack,
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
+    return '$minutes:$seconds';
   }
 
   @override
   void dispose() {
-    // Release resources when the screen is disposed
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentSong = _playlist[_currentIndex];
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Music Player')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Mostra el títol de la cançó actual
+            Text(
+              currentSong.title,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            // StreamBuilder per actualitzar el slider i mostrar el temps
+            StreamBuilder<PositionData>(
+              stream: _positionDataStream,
+              builder: (context, snapshot) {
+                final positionData =
+                    snapshot.data ?? PositionData(Duration.zero, Duration.zero);
+                final position = positionData.position;
+                final duration = positionData.duration;
+                return Column(
+                  children: [
+                    Slider(
+                      min: 0,
+                      max:
+                          duration.inSeconds.toDouble() > 0
+                              ? duration.inSeconds.toDouble()
+                              : 1,
+                      value: position.inSeconds.toDouble().clamp(
+                        0,
+                        duration.inSeconds.toDouble(),
+                      ),
+                      onChanged: (value) {
+                        _audioPlayer.seek(Duration(seconds: value.toInt()));
+                      },
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_formatDuration(position)),
+                        Text(_formatDuration(duration)),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            // Botons per a la reproducció: cançó anterior, play/pause, cançó següent
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  iconSize: 48,
+                  icon: const Icon(Icons.skip_previous),
+                  onPressed: _playPreviousSong,
+                ),
+                IconButton(
+                  iconSize: 64,
+                  icon: Icon(
+                    _audioPlayer.playing
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_filled,
+                  ),
+                  onPressed: _togglePlayPause,
+                ),
+                IconButton(
+                  iconSize: 48,
+                  icon: const Icon(Icons.skip_next),
+                  onPressed: _playNextSong,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

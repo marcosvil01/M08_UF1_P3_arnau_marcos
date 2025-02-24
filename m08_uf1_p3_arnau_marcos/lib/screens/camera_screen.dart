@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import '../gallery.dart'; // Importa la llista global
 
 class CameraScreen extends StatefulWidget {
   const CameraScreen({super.key});
@@ -81,6 +82,8 @@ class _CameraScreenState extends State<CameraScreen> {
         final file = await _controller!.takePicture();
         setState(() {
           _imageFile = file;
+          // Afegeix la ruta de la imatge a la llista global.
+          capturedImages.add(file.path);
         });
       } catch (e) {
         print("Error al capturar la imatge: $e");
@@ -118,14 +121,24 @@ class _CameraScreenState extends State<CameraScreen> {
     var scale = _controller!.value.aspectRatio * size.aspectRatio;
     if (scale < 1) scale = 1 / scale;
 
+    // Detectem si la càmera activa és frontal.
+    final isFrontCamera =
+        _cameras[_selectedCameraIndex].lensDirection ==
+        CameraLensDirection.front;
+    // Si és frontal, utilitzem -pi/2 i invertim verticalment; si no, pi/2.
+    final rotationAngle = isFrontCamera ? -math.pi / 2 : math.pi / 2;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Utilitza Transform.rotate per corregir la rotació de la preview.
-          Transform.rotate(
-            // Ajusta l'angle segons calgui (per exemple, math.pi/2 o -math.pi/2)
-            angle: math.pi / 2,
+          // Aplica una transformació per corregir la rotació i, si és frontal, invertir verticalment.
+          Transform(
+            alignment: Alignment.center,
+            transform:
+                Matrix4.identity()
+                  ..rotateZ(rotationAngle)
+                  ..scale(1.0, isFrontCamera ? -1.0 : 1.0),
             child: Transform.scale(
               scale: scale,
               child: Center(
@@ -136,7 +149,7 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
           ),
-          // Botó per activar/desactivar el flash a la part superior dreta.
+          // Botó per activar/desactivar el flash.
           Positioned(
             top: 40,
             right: 20,
@@ -149,7 +162,7 @@ class _CameraScreenState extends State<CameraScreen> {
               onPressed: _toggleFlash,
             ),
           ),
-          // Miniatura de la imatge capturada a la part inferior esquerra.
+          // Miniatura de l'última imatge capturada.
           Positioned(
             bottom: 20,
             left: 20,
@@ -177,7 +190,7 @@ class _CameraScreenState extends State<CameraScreen> {
                       ),
             ),
           ),
-          // Botó per capturar la imatge a la part inferior central.
+          // Botó per capturar la imatge.
           Positioned(
             bottom: 20,
             left: 0,
@@ -197,7 +210,7 @@ class _CameraScreenState extends State<CameraScreen> {
               ),
             ),
           ),
-          // Botó per canviar de càmera a la part inferior dreta.
+          // Botó per canviar de càmera.
           Positioned(
             bottom: 20,
             right: 20,
@@ -216,6 +229,7 @@ class _CameraScreenState extends State<CameraScreen> {
   }
 }
 
+// Aquesta classe segueix sent per a la visualització d'una sola imatge en pantalla completa.
 class GalleryScreen extends StatelessWidget {
   final String imagePath;
   const GalleryScreen({super.key, required this.imagePath});
